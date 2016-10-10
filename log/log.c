@@ -45,7 +45,7 @@ static int uart_function_router(sd_bus_message *msg, void *user_data,
 
 
 /* Dbus Services offered by this FAN controller */
-static const sd_bus_vtable fan_control_vtable[] =
+static const sd_bus_vtable uart_vtable[] =
 {
 	SD_BUS_VTABLE_START(0),
 	SD_BUS_METHOD("read", "s", "", &uart_function_router,
