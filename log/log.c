@@ -68,7 +68,7 @@ int main(int argc, char **argv)
 		return rc;
 	}
 
-	rc = sd_bus_add_object_vtable(bus, uart_slot, uart_object, uart_iface,
+	rc = sd_bus_add_object_vtable(bus, &uart_slot, uart_object, uart_iface,
 			uart_vtable, NULL);
 	if (rc < 0) {
 		fprintf(stderr, "log: Failed to add object to dbus: %s\n",
