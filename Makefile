@@ -9,7 +9,8 @@ GDBUS_APPS = bmcctl \
 	     pwrbutton \
 	     rstbutton
 
-SUBDIRS = fanctl \
+SUBDIRS = log \
+	  fanctl \
 	  hacks \
 	  ledctl \
 	  libopenbmc_intf \
