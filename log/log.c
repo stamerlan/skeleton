@@ -36,7 +36,7 @@ static int uart_function_router(sd_bus_message *msg, void *user_data,
 	/* route the user action to appropriate handlers. */
 	if ((strcmp(uart_function, "read") == 0)) {
 		s = uart_read();
-		return sd_bus_reply_method_return(msg, "s", s);
+		return sd_bus_reply_method_return(msg, "is", 0, s);
 	}
 
 	return sd_bus_reply_method_return(msg, "i", rc);
@@ -46,7 +46,7 @@ static int uart_function_router(sd_bus_message *msg, void *user_data,
 static const sd_bus_vtable uart_vtable[] =
 {
 	SD_BUS_VTABLE_START(0),
-	SD_BUS_METHOD("read", "", "s", &uart_function_router,
+	SD_BUS_METHOD("read", "", "is", &uart_function_router,
 			SD_BUS_VTABLE_UNPRIVILEGED),
 	SD_BUS_VTABLE_END,
 };
