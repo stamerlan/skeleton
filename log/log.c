@@ -24,22 +24,21 @@ static int uart_function_router(sd_bus_message *msg, void *user_data,
 		sd_bus_error *ret_error)
 {
 	char *s; /* string reply */
-	int rc = -1;
 
 	/* get the operation. */
 	const char *uart_function = sd_bus_message_get_member(msg);
 	if (!uart_function) {
 		fprintf(stderr, "log: Null uart function specificed\n");
-		return sd_bus_reply_method_return(msg, "i", rc);
+		return sd_bus_reply_method_return(msg, "i", -1);
 	}
 
 	/* route the user action to appropriate handlers. */
 	if ((strcmp(uart_function, "read") == 0)) {
 		s = uart_read();
-		return sd_bus_reply_method_return(msg, "s", 0, s);
+		return sd_bus_reply_method_return(msg, "s", s);
 	}
 
-	return sd_bus_reply_method_return(msg, "i", rc);
+	return sd_bus_reply_method_return(msg, "i", -1);
 }
 
 /* Dbus Services offered by this FAN controller */
