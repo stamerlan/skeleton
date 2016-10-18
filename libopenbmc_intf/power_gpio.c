@@ -78,7 +78,7 @@ gboolean read_power_gpio(GDBusConnection *connection, PowerGpio *power_gpio)
 	power_gpio->power_good_in.name = g_strdup(power_good_in_name);
 	power_gpio->num_power_up_outs = g_variant_iter_n_children(
 			power_up_outs_iter);
-	g_print("Power GPIO %d power_up outputs\n",
+	g_print("Power GPIO %Zu power_up outputs\n",
 			power_gpio->num_power_up_outs);
 	power_gpio->power_up_outs = g_malloc0_n(power_gpio->num_power_up_outs,
 			sizeof(GPIO));
@@ -93,7 +93,7 @@ gboolean read_power_gpio(GDBusConnection *connection, PowerGpio *power_gpio)
 		power_gpio->power_up_pols[i] = power_up_polarity;
 	}
 	power_gpio->num_reset_outs = g_variant_iter_n_children(reset_outs_iter);
-	g_print("Power GPIO %d reset outputs\n", power_gpio->num_reset_outs);
+	g_print("Power GPIO %Zu reset outputs\n", power_gpio->num_reset_outs);
 	power_gpio->reset_outs = g_malloc0_n(power_gpio->num_reset_outs, sizeof(GPIO));
 	power_gpio->reset_pols = g_malloc0_n(power_gpio->num_reset_outs,
 			sizeof(gboolean));

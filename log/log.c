@@ -12,40 +12,36 @@ const char *objectmapper_service_name =  "org.openbmc.ObjectMapper";
 const char *objectmapper_object_name  =  "/org/openbmc/ObjectMapper";
 const char *objectmapper_intf_name    =  "org.openbmc.ObjectMapper";
 
-static char *uart_read(void)
+static char *obmc_console_read(void)
 {
 	return "UART read\nanother line read from uart\n\n\n\nEOF"; 
 }
 
-/*
- * Router function for any FAN operations that come via dbus
- */
-static int uart_function_router(sd_bus_message *msg, void *user_data,
+static int obmc_console_function_router(sd_bus_message *msg, void *user_data,
 		sd_bus_error *ret_error)
 {
 	char *s; /* string reply */
 
 	/* get the operation. */
-	const char *uart_function = sd_bus_message_get_member(msg);
-	if (!uart_function) {
+	const char *obmc_console_function = sd_bus_message_get_member(msg);
+	if (!obmc_console_function) {
 		fprintf(stderr, "log: Null uart function specificed\n");
 		return sd_bus_reply_method_return(msg, "i", -1);
 	}
 
 	/* route the user action to appropriate handlers. */
-	if ((strcmp(uart_function, "read") == 0)) {
-		s = uart_read();
+	if ((strcmp(obmc_console_function, "read") == 0)) {
+		s = obmc_console_read();
 		return sd_bus_reply_method_return(msg, "s", s);
 	}
 
 	return sd_bus_reply_method_return(msg, "i", -1);
 }
 
-/* Dbus Services offered by this FAN controller */
-static const sd_bus_vtable uart_vtable[] =
+static const sd_bus_vtable obmc_console_vtable[] =
 {
 	SD_BUS_VTABLE_START(0),
-	SD_BUS_METHOD("read", "", "s", &uart_function_router,
+	SD_BUS_METHOD("read", "", "s", &obmc_console_function_router,
 			SD_BUS_VTABLE_UNPRIVILEGED),
 	SD_BUS_VTABLE_END,
 };
@@ -53,9 +49,9 @@ static const sd_bus_vtable uart_vtable[] =
 int main(int argc, char **argv)
 {
 	sd_bus *bus;
-	sd_bus_slot *uart_slot = NULL;
-	const char *uart_object = "/org/openbmc/log/uart";
-	const char *uart_iface = "org.openbmc.log.uart";
+	sd_bus_slot *obmc_console_slot = NULL;
+	const char *obmc_console_object = "/org/openbmc/log/obmcConsole";
+	const char *obmc_console_iface = "org.openbmc.log.obmcConsole";
 	int rc;
 
 	rc = sd_bus_open_system(&bus);
@@ -64,15 +60,16 @@ int main(int argc, char **argv)
 		return rc;
 	}
 
-	rc = sd_bus_add_object_vtable(bus, &uart_slot, uart_object, uart_iface,
-			uart_vtable, NULL);
+	rc = sd_bus_add_object_vtable(bus, &obmc_console_slot, 
+			obmc_console_object, obmc_console_iface,
+			obmc_console_vtable, NULL);
 	if (rc < 0) {
 		fprintf(stderr, "log: Failed to add object to dbus: %s\n",
 				strerror(-rc));
 		return rc;
 	}
 
-	rc = sd_bus_request_name(bus, uart_iface, 0);
+	rc = sd_bus_request_name(bus, obmc_console_iface, 0);
 	if (rc < 0) {
 		fprintf(stderr, "log: Failed to acquire service name: %s\n",
 				strerror(-rc));
@@ -99,7 +96,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	sd_bus_slot_unref(uart_slot);
+	sd_bus_slot_unref(obmc_console_slot);
 	sd_bus_unref(bus);
 
 	return EXIT_SUCCESS;
