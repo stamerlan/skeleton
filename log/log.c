@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <string.h>
 #include <getopt.h>
+#include <pthread.h>
 #include <systemd/sd-bus.h>
 
 #define DBUS_MAX_NAME_LEN 256
@@ -12,9 +13,11 @@ const char *objectmapper_service_name =  "org.openbmc.ObjectMapper";
 const char *objectmapper_object_name  =  "/org/openbmc/ObjectMapper";
 const char *objectmapper_intf_name    =  "org.openbmc.ObjectMapper";
 
+static char *msg;
+
 static char *obmc_console_read(void)
 {
-	return "UART read\nanother line read from uart\n\n\n\nEOF"; 
+	return msg;
 }
 
 static int obmc_console_function_router(sd_bus_message *msg, void *user_data,
@@ -46,12 +49,20 @@ static const sd_bus_vtable obmc_console_vtable[] =
 	SD_BUS_VTABLE_END,
 };
 
+static void *socket_th_function(void *args)
+{
+	fprintf(stderr, "log: Thread created!");
+
+	return NULL;
+}
+
 int main(int argc, char **argv)
 {
 	sd_bus *bus;
 	sd_bus_slot *obmc_console_slot = NULL;
 	const char *obmc_console_object = "/org/openbmc/log/obmcConsole";
 	const char *obmc_console_iface = "org.openbmc.log.obmcConsole";
+	pthread_t socket_thread;
 	int rc;
 
 	rc = sd_bus_open_system(&bus);
@@ -76,6 +87,12 @@ int main(int argc, char **argv)
 		return rc;
 	}
 
+	if (pthread_create(&socket_thread, NULL, socket_th_function, NULL)) {
+		fprintf(stderr, "log: Failed to create thread\n");
+		rc = 1;
+		goto sdbus_free;
+	}
+
 	for (;;) {
 		/* process */
 		rc = sd_bus_process(bus, NULL);
@@ -96,8 +113,10 @@ int main(int argc, char **argv)
 		}
 	}
 
+	rc = 0;
+ sdbus_free:
 	sd_bus_slot_unref(obmc_console_slot);
 	sd_bus_unref(bus);
 
-	return EXIT_SUCCESS;
+	return rc;
 }
