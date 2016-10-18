@@ -9,7 +9,7 @@ GDBUS_APPS = bmcctl \
 	     pwrbutton \
 	     rstbutton
 
-SUBDIRS = log \
+SUBDIRS = pylog \
 	  fanctl \
 	  hacks \
 	  ledctl \
