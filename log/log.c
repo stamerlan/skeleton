@@ -23,10 +23,21 @@ static char *obmc_console_read(void)
 	return buffer;
 }
 
+static uint32_t obmc_console_get_size(void)
+{
+	return buffer_sz;
+}
+
+static uint32_t obmc_console_get_capacity(void)
+{
+	return buffer_capacity;
+}
+
 static int obmc_console_function_router(sd_bus_message *msg, void *user_data,
 		sd_bus_error *ret_error)
 {
-	char *s; /* string reply */
+	char *s;
+	uint32_t u;
 
 	/* get the operation. */
 	const char *obmc_console_function = sd_bus_message_get_member(msg);
@@ -36,9 +47,17 @@ static int obmc_console_function_router(sd_bus_message *msg, void *user_data,
 	}
 
 	/* route the user action to appropriate handlers. */
-	if ((strcmp(obmc_console_function, "read") == 0)) {
+	if (!strcmp(obmc_console_function, "read")) {
 		s = obmc_console_read();
 		return sd_bus_reply_method_return(msg, "s", s);
+	}
+	if (!strcmp(obmc_console_function, "get_size")) {
+		u = obmc_console_get_size();
+		return sd_bus_reply_method_return(msg, "u", u);
+	}
+	if (!strcmp(obmc_console_function, "get_capacity")) {
+		u = obmc_console_get_capacity();
+		return sd_bus_reply_method_return(msg, "u", u);
 	}
 
 	return sd_bus_reply_method_return(msg, "i", -1);
@@ -48,6 +67,10 @@ static const sd_bus_vtable obmc_console_vtable[] =
 {
 	SD_BUS_VTABLE_START(0),
 	SD_BUS_METHOD("read", "", "s", &obmc_console_function_router,
+			SD_BUS_VTABLE_UNPRIVILEGED),
+	SD_BUS_METHOD("get_size", "", "u", &obmc_console_function_router,
+			SD_BUS_VTABLE_UNPRIVILEGED),
+	SD_BUS_METHOD("get_capacity", "", "u", &obmc_console_function_router,
 			SD_BUS_VTABLE_UNPRIVILEGED),
 	SD_BUS_VTABLE_END,
 };
