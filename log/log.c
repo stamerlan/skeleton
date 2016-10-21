@@ -36,6 +36,26 @@ static int obmc_console_get_capacity(sd_bus_message *msg, void *user_data,
 	return sd_bus_reply_method_return(msg, "u", (uint32_t)buffer_capacity);
 }
 
+static int size_value(sd_bus *bus, const char *path, const char *interface,
+		const char *property, sd_bus_message *reply, void *userdata, 
+		sd_bus_error *error)
+{
+	int rc;
+
+	fprintf(stderr, "size_value():\n" \
+		"  path: %s\n" \
+		"  interface: %s\n" \
+		"  property: %s\n", path, interface, property);
+
+	rc = sd_bus_message_append(reply, "u", buffer_sz);
+	if (rc < 0) {
+		fprintf(stderr, "sd_bus_message_append(): %s\n",
+				strerror(-rc));
+		return 0;
+	}
+	return 1;
+}
+
 static const sd_bus_vtable obmc_console_vtable[] =
 {
 	SD_BUS_VTABLE_START(0),
@@ -44,6 +64,9 @@ static const sd_bus_vtable obmc_console_vtable[] =
 	SD_BUS_METHOD("get_size", "", "u", &obmc_console_get_size,
 			SD_BUS_VTABLE_UNPRIVILEGED),
 	SD_BUS_METHOD("get_capacity", "", "u", &obmc_console_get_capacity,
+			SD_BUS_VTABLE_UNPRIVILEGED),
+	SD_BUS_PROPERTY("size", "u", size_value, 0, 
+			SD_BUS_VTABLE_PROPERTY_EMITS_CHANGE |
 			SD_BUS_VTABLE_UNPRIVILEGED),
 	SD_BUS_VTABLE_END,
 };
