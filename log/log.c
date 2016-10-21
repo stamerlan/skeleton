@@ -18,64 +18,37 @@ static size_t buffer_sz;
 static size_t buffer_capacity;
 static const size_t buffer_init_capacity = 16 * 1024;
 
-static char *obmc_console_read(void)
-{
-	return buffer;
-}
-
-static uint32_t obmc_console_get_size(void)
-{
-	return buffer_sz;
-}
-
-static uint32_t obmc_console_get_capacity(void)
-{
-	return buffer_capacity;
-}
-
-static int obmc_console_function_router(sd_bus_message *msg, void *user_data,
+static int obmc_console_read(sd_bus_message *msg, void *user_data,
 		sd_bus_error *ret_error)
 {
-	char *s;
-	uint32_t u;
+	return sd_bus_reply_method_return(msg, "s", buffer);
+}
 
-	/* get the operation. */
-	const char *obmc_console_function = sd_bus_message_get_member(msg);
-	if (!obmc_console_function) {
-		fprintf(stderr, "NULL obmc_console function specificed\n");
-		return sd_bus_reply_method_return(msg, "i", -1);
-	}
+static int obmc_console_get_size(sd_bus_message *msg, void *user_data,
+		sd_bus_error *ret_error)
+{
+	return sd_bus_reply_method_return(msg, "u", (uint32_t)buffer_sz);
+}
 
-	/* route the user action to appropriate handlers. */
-	if (!strcmp(obmc_console_function, "read")) {
-		s = obmc_console_read();
-		return sd_bus_reply_method_return(msg, "s", s);
-	}
-	if (!strcmp(obmc_console_function, "get_size")) {
-		u = obmc_console_get_size();
-		return sd_bus_reply_method_return(msg, "u", u);
-	}
-	if (!strcmp(obmc_console_function, "get_capacity")) {
-		u = obmc_console_get_capacity();
-		return sd_bus_reply_method_return(msg, "u", u);
-	}
-
-	return sd_bus_reply_method_return(msg, "i", -1);
+static int obmc_console_get_capacity(sd_bus_message *msg, void *user_data,
+		sd_bus_error *ret_error)
+{
+	return sd_bus_reply_method_return(msg, "u", (uint32_t)buffer_capacity);
 }
 
 static const sd_bus_vtable obmc_console_vtable[] =
 {
 	SD_BUS_VTABLE_START(0),
-	SD_BUS_METHOD("read", "", "s", &obmc_console_function_router,
+	SD_BUS_METHOD("read", "", "s", &obmc_console_read,
 			SD_BUS_VTABLE_UNPRIVILEGED),
-	SD_BUS_METHOD("get_size", "", "u", &obmc_console_function_router,
+	SD_BUS_METHOD("get_size", "", "u", &obmc_console_get_size,
 			SD_BUS_VTABLE_UNPRIVILEGED),
-	SD_BUS_METHOD("get_capacity", "", "u", &obmc_console_function_router,
+	SD_BUS_METHOD("get_capacity", "", "u", &obmc_console_get_capacity,
 			SD_BUS_VTABLE_UNPRIVILEGED),
 	SD_BUS_VTABLE_END,
 };
 
-static void *socket_th_function(void *args)
+static void *socket_thread(void *args)
 {
 	static const char console_socket_path[] = "\0obmc-console";
 	static const size_t console_socket_path_len = 
@@ -132,7 +105,7 @@ int main(int argc, char **argv)
 	sd_bus_slot *obmc_console_slot = NULL;
 	const char *obmc_console_object = "/org/openbmc/log/obmcConsole";
 	const char *obmc_console_iface = "org.openbmc.log.obmcConsole";
-	pthread_t socket_thread;
+	pthread_t socket_th;
 	int rc;
 
 	rc = sd_bus_open_system(&bus);
@@ -158,7 +131,7 @@ int main(int argc, char **argv)
 		return rc;
 	}
 
-	rc = pthread_create(&socket_thread, NULL, socket_th_function, NULL);
+	rc = pthread_create(&socket_th, NULL, socket_thread, NULL);
 	if (rc < 0) {
 		fprintf(stderr, "Failed to create thread: %s\n",
 			strerror(rc));
