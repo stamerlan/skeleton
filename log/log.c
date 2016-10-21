@@ -66,8 +66,7 @@ static const sd_bus_vtable obmc_console_vtable[] =
 	SD_BUS_METHOD("get_capacity", "", "u", &obmc_console_get_capacity,
 			SD_BUS_VTABLE_UNPRIVILEGED),
 	SD_BUS_PROPERTY("size", "u", size_value, 0, 
-			SD_BUS_VTABLE_PROPERTY_EMITS_CHANGE |
-			SD_BUS_VTABLE_UNPRIVILEGED),
+			SD_BUS_VTABLE_PROPERTY_EMITS_CHANGE),
 	SD_BUS_VTABLE_END,
 };
 
