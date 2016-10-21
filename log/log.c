@@ -24,9 +24,9 @@ static int obmc_console_read(sd_bus_message *msg, void *user_data,
 	return sd_bus_reply_method_return(msg, "s", buffer);
 }
 
-static int size_value(sd_bus *bus, const char *path, const char *interface,
-		const char *property, sd_bus_message *reply, void *userdata, 
-		sd_bus_error *error)
+static int obmc_console_get_size(sd_bus *bus, const char *path, 
+		const char *interface, const char *property, 
+		sd_bus_message *reply, void *userdata, sd_bus_error *error)
 {
 	int rc;
 
@@ -39,9 +39,9 @@ static int size_value(sd_bus *bus, const char *path, const char *interface,
 	return 1;
 }
 
-static int capacity_value(sd_bus *bus, const char *path, const char *interface,
-		const char *property, sd_bus_message *reply, void *userdata, 
-		sd_bus_error *error)
+static int obmc_console_get_capacity(sd_bus *bus, const char *path,
+		const char *interface, const char *property,
+		sd_bus_message *reply, void *userdata, sd_bus_error *error)
 {
 	int rc;
 
@@ -54,15 +54,29 @@ static int capacity_value(sd_bus *bus, const char *path, const char *interface,
 	return 1;
 }
 
+static int obmc_console_set_capacity(sd_bus *bus, const char *path,
+		const char *interface, const char *property,
+		sd_bus_message *value, void *userdata, sd_bus_error *error)
+{
+	uint32_t new_capacity;
+	int rc;
+
+	rc = sd_bus_message_read(value, "u", &new_capacity);
+
+	fprintf(stderr, "new capacity value: %" PRIu32 "\n", new_capacity);
+
+	return 1;
+}
+
 static const sd_bus_vtable obmc_console_vtable[] =
 {
 	SD_BUS_VTABLE_START(0),
 	SD_BUS_METHOD("read", "", "s", &obmc_console_read,
-			SD_BUS_VTABLE_UNPRIVILEGED),
-	SD_BUS_PROPERTY("size", "u", size_value, 0, 
-			SD_BUS_VTABLE_PROPERTY_EMITS_CHANGE),
-	SD_BUS_PROPERTY("capacity", "u", capacity_value, 0,
-			SD_BUS_VTABLE_PROPERTY_EMITS_CHANGE),
+		SD_BUS_VTABLE_UNPRIVILEGED),
+	SD_BUS_PROPERTY("size", "u", obmc_console_get_size, 0, 
+		SD_BUS_VTABLE_PROPERTY_EMITS_CHANGE),
+	SD_BUS_WRITABLE_PROPERTY("capacity", "u", obmc_console_get_capacity,
+		obmc_console_set_capacity, 0, 0),
 	SD_BUS_VTABLE_END,
 };
 
