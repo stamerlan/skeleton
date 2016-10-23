@@ -30,7 +30,7 @@ static int obmc_console_get_size(sd_bus *bus, const char *path,
 {
 	int rc;
 
-	rc = sd_bus_message_append(reply, "u", buffer_sz);
+	rc = sd_bus_message_append(reply, "i", (int32_t)buffer_sz);
 	if (rc < 0) {
 		fprintf(stderr, "sd_bus_message_append(): %s\n",
 				strerror(-rc));
@@ -45,7 +45,7 @@ static int obmc_console_get_capacity(sd_bus *bus, const char *path,
 {
 	int rc;
 
-	rc = sd_bus_message_append(reply, "u", buffer_capacity);
+	rc = sd_bus_message_append(reply, "i", (int32_t)buffer_capacity);
 	if (rc < 0) {
 		fprintf(stderr, "sd_bus_message_append(): %s\n",
 				strerror(-rc));
@@ -58,12 +58,12 @@ static int obmc_console_set_capacity(sd_bus *bus, const char *path,
 		const char *interface, const char *property,
 		sd_bus_message *value, void *userdata, sd_bus_error *error)
 {
-	uint32_t new_capacity;
+	int32_t new_capacity;
 	int rc;
 
-	rc = sd_bus_message_read(value, "u", &new_capacity);
+	rc = sd_bus_message_read(value, "i", &new_capacity);
 
-	fprintf(stderr, "new capacity value: %" PRIu32 "\n", new_capacity);
+	fprintf(stderr, "new capacity value: %" PRId32 "\n", new_capacity);
 
 	return 1;
 }
@@ -73,9 +73,9 @@ static const sd_bus_vtable obmc_console_vtable[] =
 	SD_BUS_VTABLE_START(0),
 	SD_BUS_METHOD("read", "", "s", &obmc_console_read,
 		SD_BUS_VTABLE_UNPRIVILEGED),
-	SD_BUS_PROPERTY("size", "u", obmc_console_get_size, 0, 
+	SD_BUS_PROPERTY("size", "i", obmc_console_get_size, 0, 
 		SD_BUS_VTABLE_PROPERTY_EMITS_CHANGE),
-	SD_BUS_WRITABLE_PROPERTY("capacity", "u", obmc_console_get_capacity,
+	SD_BUS_WRITABLE_PROPERTY("capacity", "i", obmc_console_get_capacity,
 		obmc_console_set_capacity, 0, 0),
 	SD_BUS_VTABLE_END,
 };
