@@ -131,12 +131,17 @@ static void *socket_thread(void *args)
 			if (!next_line) {
 				/* whole buffer is a line */
 				buffer_sz = 0;
+				fprintf(stderr, "clear buffer\n");
 			} else {
 				/* next_line points to next line */
 				buffer_sz -= next_line - buffer;
+				fprintf(stderr, "1st line size: %zu\n",
+						next_line - buffer);
+				*(next_line - 1) = '\0';
+				fprintf(stderr, "1st line: %s\n", buffer);
 				memmove(buffer, next_line, buffer_sz);
 			}
-			fprintf(stderr, "Buffer oferflow. New buffer sz is: %zu",
+			fprintf(stderr, "Buffer oferflow. New buffer sz is: %zu\n",
 					buffer_sz);
 		}
 		buffer[buffer_sz] = c;
