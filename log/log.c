@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <errno.h>
 #include <pthread.h>
@@ -13,15 +14,20 @@ const char *objectmapper_service_name =  "org.openbmc.ObjectMapper";
 const char *objectmapper_object_name  =  "/org/openbmc/ObjectMapper";
 const char *objectmapper_intf_name    =  "org.openbmc.ObjectMapper";
 
-static char *buffer;
-static size_t buffer_sz;
-static size_t buffer_capacity;
-static const size_t buffer_init_capacity = 16 * 1024;
+static char *buffer; /* a whole buffer where log stored */
+static size_t buffer_sz; /* data size */
+static size_t buffer_capacity; /* buffer size */
+static pthread_mutex_t buffer_lock = PTHREAD_MUTEX_INITIALIZER;
+static const size_t buffer_init_capacity = 16 * 1024; /* initial buffer size */
 
 static int obmc_console_read(sd_bus_message *msg, void *user_data,
 		sd_bus_error *ret_error)
 {
-	return sd_bus_reply_method_return(msg, "s", buffer);
+	int rc;
+	pthread_mutex_lock(&buffer_lock);
+	rc = sd_bus_reply_method_return(msg, "s", buffer);
+	pthread_mutex_unlock(&buffer_lock);
+	return rc;
 }
 
 static int obmc_console_get_size(sd_bus *bus, const char *path, 
@@ -88,6 +94,7 @@ static void *socket_thread(void *args)
 	struct sockaddr_un addr;
 	int fd;
 	char c;
+	char *next_line;
        
 	fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (fd == -1) {
@@ -115,13 +122,26 @@ static void *socket_thread(void *args)
 	for (;;) {
 		if (read(fd, &c, 1) < 1)
 			break;
+		pthread_mutex_lock(&buffer_lock);
 		if (buffer_sz + 1 == buffer_capacity) {
-			/* if there is not enought space for new data */
-			fprintf(stderr, "Buffer is full\n");
-			goto close_sock;
+			/* if there is not enought space for new data:
+			 * remove the first log line 
+			 */
+			next_line = strtok(buffer, "\n");
+			if (!next_line) {
+				/* whole buffer is a line */
+				buffer_sz = 0;
+			} else {
+				/* next_line points to next line */
+				buffer_sz -= next_line - buffer;
+				memmove(buffer, next_line, buffer_sz);
+			}
+			fprintf(stderr, "Buffer oferflow. New buffer sz is: %zu",
+					buffer_sz);
 		}
 		buffer[buffer_sz] = c;
 		buffer_sz++;
+		pthread_mutex_unlock(&buffer_lock);
 	}
 
 	fprintf(stderr, "exit socket thread\n");
