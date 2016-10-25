@@ -130,7 +130,7 @@ static void *socket_thread(void *args)
 			/* search the first line end */
 			line_sz = 0;
 			while (line_sz < buffer_capacity && 
-					buffer[line_sz] != '\0')
+					buffer[line_sz] != '\n')
 				line_sz++;
 
 			if (line_sz == buffer_capacity) {
@@ -153,8 +153,10 @@ static void *socket_thread(void *args)
 			char *p = &buffer[buffer_sz - 1];
 			if (p != buffer)
 				p--;
-			while (!(p == buffer || *p == '\n'))
+			while (p != buffer && *p != '\n')
 				p--;
+			if (*p == '\n')
+				p++;
 			fprintf(stderr, "%s", p);
 		}
 		pthread_mutex_unlock(&buffer_lock);
