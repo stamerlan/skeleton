@@ -78,8 +78,8 @@ static int obmc_console_set_capacity(sd_bus *bus, const char *path,
 {
 	int32_t new_capacity;
 	char *new_buffer;
+	size_t new_buffer_offset;
 	size_t new_buffer_sz;
-	size_t new_buffer_start;
 	int rc;
 
 	rc = sd_bus_message_read(value, "i", &new_capacity);
@@ -100,33 +100,29 @@ static int obmc_console_set_capacity(sd_bus *bus, const char *path,
 	}
 
 	pthread_mutex_lock(&buffer_lock);
-	new_buffer_start = 0;
 	new_buffer_sz = buffer_sz;
+	new_buffer_offset = 0;
 	while (new_buffer_sz >= new_capacity) {
-		while (new_buffer_start < buffer_capacity && 
-				buffer[new_buffer_start] != '\n') {
-			new_buffer_start++;
-			new_buffer_sz--;
-		}
-		if (new_buffer_start < buffer_capacity) {
-			new_buffer_start++;
-			new_buffer_sz--;
-		} else {
-			new_buffer_sz = 0;
-		}
+		new_buffer_offset = strcspn(&buffer[new_buffer_offset], "\n");
+		if (new_buffer_offset != new_buffer_sz)
+			new_buffer_offset++;
+		new_buffer_sz = buffer_sz - new_buffer_offset;
 	}
 
-	buffer[new_buffer_start - 1] = '\0';
-	printf("removed:\n%s\n", buffer);
-	memcpy(new_buffer, &buffer[new_buffer_start], new_buffer_sz);
+	if (new_buffer_offset) {
+		buffer[new_buffer_offset - 1] = '\0';
+		fprintf(stderr, "change capacity removed:\n%s\n", buffer);
+	}
+
+	if (new_buffer_sz) {
+		memcpy(new_buffer, &buffer[new_buffer_offset], new_buffer_sz);
+		new_buffer[new_buffer_sz] = '\0';
+	}
 	free(buffer);
 	buffer = new_buffer;
 	buffer_capacity = new_capacity;
 	buffer_sz = new_buffer_sz;
-	fprintf(stderr, "new capacity: %zu\nnew size: %zu\n", buffer_capacity,
-			buffer_sz);
 	pthread_mutex_unlock(&buffer_lock);
-
 
 	return 1;
 }
@@ -185,18 +181,14 @@ static void *socket_thread(void *args)
 		if (buffer_sz + 1 == buffer_capacity) {
 			/* if there is not enought space for new data */
 
-			/* search the first line end */
-			line_sz = 0;
-			while (line_sz < buffer_capacity && 
-					buffer[line_sz] != '\n')
-				line_sz++;
-		
-			if (line_sz == buffer_capacity) {
+			line_sz = strcspn(buffer, "\n");
+			if (line_sz == buffer_sz) {
 				/* whole buffer is a line */
 				buffer_sz = 0;
 			} else {
 				buffer_sz -= line_sz + 1;
-				memmove(buffer, &buffer[line_sz + 1], buffer_sz);
+				memmove(buffer, &buffer[line_sz + 1], 
+						buffer_sz);
 			}
 		}
 		
