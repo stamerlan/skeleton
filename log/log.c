@@ -30,6 +30,22 @@ static int obmc_console_read(sd_bus_message *msg, void *user_data,
 	return rc;
 }
 
+static int obmc_console_dump(sd_bus_message *msg, void *user_data,
+		sd_bus_error *ret_error)
+{
+	char ret_buf[buffer_init_capacity * 3 + 1];
+	int rc;
+	size_t i;
+	char *p;
+
+	pthread_mutex_lock(&buffer_lock);
+	for (i = 0, p = ret_buf; i < buffer_capacity; i++, p+= 3)
+		sprintf(p, "%02x ", buffer[i]);
+	rc = sd_bus_reply_method_return(msg, "s", ret_buf);
+	pthread_mutex_unlock(&buffer_lock);
+	return rc;
+}
+
 static int obmc_console_get_size(sd_bus *bus, const char *path, 
 		const char *interface, const char *property, 
 		sd_bus_message *reply, void *userdata, sd_bus_error *error)
@@ -78,6 +94,8 @@ static const sd_bus_vtable obmc_console_vtable[] =
 {
 	SD_BUS_VTABLE_START(0),
 	SD_BUS_METHOD("read", "", "s", &obmc_console_read,
+		SD_BUS_VTABLE_UNPRIVILEGED),
+	SD_BUS_METHOD("dump", "", "s", &obmc_console_dump,
 		SD_BUS_VTABLE_UNPRIVILEGED),
 	SD_BUS_PROPERTY("size", "i", obmc_console_get_size, 0, 
 		SD_BUS_VTABLE_PROPERTY_EMITS_CHANGE),
@@ -138,7 +156,7 @@ static void *socket_thread(void *args)
 				buffer_sz = 0;
 				fprintf(stderr, "clear buffer\n");
 			} else {
-				buffer_sz -= line_sz;
+				buffer_sz -= line_sz + 1;
 				fprintf(stderr, "1st line size: %zu\n", line_sz);
 				buffer[line_sz] = '\0';
 				fprintf(stderr, "removed line: %s\n", buffer);
