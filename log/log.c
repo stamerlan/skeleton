@@ -102,22 +102,26 @@ static int obmc_console_set_capacity(sd_bus *bus, const char *path,
 	pthread_mutex_lock(&buffer_lock);
 	new_buffer_sz = buffer_sz;
 	new_buffer_offset = 0;
+	fprintf(stderr, "old capacity: %zu, new capacity: %" PRId32 ", old size: %zu\n",
+			buffer_capacity, new_capacity, buffer_sz);
 	while (new_buffer_sz >= new_capacity) {
 		new_buffer_offset = strcspn(&buffer[new_buffer_offset], "\n");
 		if (new_buffer_offset != new_buffer_sz)
 			new_buffer_offset++;
-		new_buffer_sz = buffer_sz - new_buffer_offset;
+		new_buffer_sz -= new_buffer_offset;
 	}
 
 	if (new_buffer_offset) {
 		buffer[new_buffer_offset - 1] = '\0';
-		fprintf(stderr, "change capacity removed:\n%s\n", buffer);
+		fprintf(stderr, "removed:\n%s\n", buffer);
 	}
 
 	if (new_buffer_sz) {
 		memcpy(new_buffer, &buffer[new_buffer_offset], new_buffer_sz);
 		new_buffer[new_buffer_sz] = '\0';
 	}
+
+	fprintf(stderr, "new buffer size: %zu\n", new_buffer_sz);
 	free(buffer);
 	buffer = new_buffer;
 	buffer_capacity = new_capacity;
@@ -186,6 +190,8 @@ static void *socket_thread(void *args)
 				/* whole buffer is a line */
 				buffer_sz = 0;
 			} else {
+				buffer[line_sz] = '\0';
+				fprintf(stderr, "removed line:\n%s\n", buffer);
 				buffer_sz -= line_sz + 1;
 				memmove(buffer, &buffer[line_sz + 1], 
 						buffer_sz);
