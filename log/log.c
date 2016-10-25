@@ -124,10 +124,8 @@ static void *socket_thread(void *args)
 			break;
 		pthread_mutex_lock(&buffer_lock);
 		if (buffer_sz + 1 == buffer_capacity) {
-			/* if there is not enought space for new data:
-			 * remove the first log line 
-			 */
-			next_line = strtok(buffer, "\n");
+			/* if there is not enought space for new data */
+			next_line = strtok(buffer + 1, "\n");
 			if (!next_line) {
 				/* whole buffer is a line */
 				buffer_sz = 0;
@@ -141,11 +139,20 @@ static void *socket_thread(void *args)
 				fprintf(stderr, "1st line: %s\n", buffer);
 				memmove(buffer, next_line, buffer_sz);
 			}
-			fprintf(stderr, "Buffer oferflow. New buffer sz is: %zu\n",
+			fprintf(stderr, "Buffer overflow. New buffer size is: %zu\n",
 					buffer_sz);
 		}
 		buffer[buffer_sz] = c;
 		buffer_sz++;
+		buffer[buffer_sz] = '\0';
+		if (c == '\n') {
+			char *p = &buffer[buffer_sz - 1];
+			if (p != buffer)
+				p--;
+			while (!(p == buffer || *p == '\n'))
+				p++;
+			fprintf(stderr, "%s", p);
+		}
 		pthread_mutex_unlock(&buffer_lock);
 	}
 
