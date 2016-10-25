@@ -94,7 +94,7 @@ static void *socket_thread(void *args)
 	struct sockaddr_un addr;
 	int fd;
 	char c;
-	char *next_line;
+	size_t line_sz;
        
 	fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (fd == -1) {
@@ -125,22 +125,26 @@ static void *socket_thread(void *args)
 		pthread_mutex_lock(&buffer_lock);
 		if (buffer_sz + 1 == buffer_capacity) {
 			/* if there is not enought space for new data */
-			next_line = strtok(buffer + 1, "\n");
-			if (!next_line) {
+			fprintf(stderr, "\n\nBUFFER OVERFLOW:\n");
+
+			/* search the first line end */
+			line_sz = 0;
+			while (line_sz < buffer_capacity && 
+					buffer[line_sz] != '\0')
+				line_sz++;
+
+			if (line_sz == buffer_capacity) {
 				/* whole buffer is a line */
 				buffer_sz = 0;
 				fprintf(stderr, "clear buffer\n");
 			} else {
-				/* next_line points to next line */
-				buffer_sz -= next_line - buffer;
-				fprintf(stderr, "1st line size: %zu\n",
-						next_line - buffer);
-				*(next_line - 1) = '\0';
-				fprintf(stderr, "1st line: %s\n", buffer);
-				memmove(buffer, next_line, buffer_sz);
+				buffer_sz -= line_sz;
+				fprintf(stderr, "1st line size: %zu\n", line_sz);
+				buffer[line_sz] = '\0';
+				fprintf(stderr, "removed line: %s\n", buffer);
+				memmove(buffer, &buffer[line_sz + 1], buffer_sz);
 			}
-			fprintf(stderr, "Buffer overflow. New buffer size is: %zu\n",
-					buffer_sz);
+			fprintf(stderr, "New buffer size is: %zu\n\n\n", buffer_sz);
 		}
 		buffer[buffer_sz] = c;
 		buffer_sz++;
@@ -150,7 +154,7 @@ static void *socket_thread(void *args)
 			if (p != buffer)
 				p--;
 			while (!(p == buffer || *p == '\n'))
-				p++;
+				p--;
 			fprintf(stderr, "%s", p);
 		}
 		pthread_mutex_unlock(&buffer_lock);
