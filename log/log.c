@@ -14,12 +14,37 @@ const char *objectmapper_service_name =  "org.openbmc.ObjectMapper";
 const char *objectmapper_object_name  =  "/org/openbmc/ObjectMapper";
 const char *objectmapper_intf_name    =  "org.openbmc.ObjectMapper";
 
+static const size_t buffer_init_capacity = 16 * 1024; /* initial buffer size */
+static pthread_mutex_t buffer_lock = PTHREAD_MUTEX_INITIALIZER;
 static char *buffer; /* a whole buffer where log stored */
 static size_t buffer_sz; /* data size */
 static size_t buffer_capacity; /* buffer size */
-static pthread_mutex_t buffer_lock = PTHREAD_MUTEX_INITIALIZER;
-static const size_t buffer_init_capacity = 16 * 1024; /* initial buffer size */
 
+/* Remove first line from the buffer
+ * NOTE: buffer_lock must be held
+ */
+static void truncate_buffer(void)
+{
+	/* search the first line end */
+	size_t line_sz = 0;
+	while (line_sz < buffer_capacity && 
+			buffer[line_sz] != '\n')
+		line_sz++;
+
+	if (line_sz == buffer_capacity) {
+		/* whole buffer is a line */
+		buffer_sz = 0;
+	} else {
+		buffer_sz -= line_sz + 1;
+		memmove(buffer, &buffer[line_sz + 1], buffer_sz);
+	}
+	buffer[buffer_sz] = '\0';
+}
+
+
+/* obmcConsole.read() method
+ * return string containing obmcConsole log
+ */
 static int obmc_console_read(sd_bus_message *msg, void *user_data,
 		sd_bus_error *ret_error)
 {
@@ -30,22 +55,9 @@ static int obmc_console_read(sd_bus_message *msg, void *user_data,
 	return rc;
 }
 
-static int obmc_console_dump(sd_bus_message *msg, void *user_data,
-		sd_bus_error *ret_error)
-{
-	char ret_buf[buffer_init_capacity * 3 + 1];
-	int rc;
-	size_t i;
-	char *p;
-
-	pthread_mutex_lock(&buffer_lock);
-	for (i = 0, p = ret_buf; i < buffer_capacity; i++, p+= 3)
-		sprintf(p, "%02x ", buffer[i]);
-	rc = sd_bus_reply_method_return(msg, "s", ret_buf);
-	pthread_mutex_unlock(&buffer_lock);
-	return rc;
-}
-
+/* obmcConsole.size property
+ * return log size
+ */
 static int obmc_console_get_size(sd_bus *bus, const char *path, 
 		const char *interface, const char *property, 
 		sd_bus_message *reply, void *userdata, sd_bus_error *error)
@@ -61,6 +73,9 @@ static int obmc_console_get_size(sd_bus *bus, const char *path,
 	return 1;
 }
 
+/* obmcConsole.capacity property
+ * return log capacity
+ */
 static int obmc_console_get_capacity(sd_bus *bus, const char *path,
 		const char *interface, const char *property,
 		sd_bus_message *reply, void *userdata, sd_bus_error *error)
@@ -76,16 +91,45 @@ static int obmc_console_get_capacity(sd_bus *bus, const char *path,
 	return 1;
 }
 
+/* obmcConsole.capacity property
+ * set new log capacity
+ */
 static int obmc_console_set_capacity(sd_bus *bus, const char *path,
 		const char *interface, const char *property,
 		sd_bus_message *value, void *userdata, sd_bus_error *error)
 {
 	int32_t new_capacity;
+	char *new_buffer;
 	int rc;
 
 	rc = sd_bus_message_read(value, "i", &new_capacity);
+	if (rc < 0) {
+		fprintf(stderr, "sd_bus_message_read(): %s\n",
+				strerror(-rc));
+		return 0;
+	}
+	if (new_capacity <= 0) {
+		fprintf(stderr, "invalid capacity %" PRId32 "\n", new_capacity);
+		return 0;
+	}
 
-	fprintf(stderr, "new capacity value: %" PRId32 "\n", new_capacity);
+	new_buffer = malloc(new_capacity);
+	if (!new_buffer) {
+		fprintf(stderr, "Failed to allocate memory\n");
+		return 0;
+	}
+
+	pthread_mutex_lock(&buffer_lock);
+	while (buffer_sz >= new_capacity)
+		truncate_buffer();
+
+	memcpy(new_buffer, buffer, buffer_sz + 1);
+	free(buffer);
+	buffer = new_buffer;
+	buffer_capacity = new_capacity;
+	pthread_mutex_unlock(&buffer_lock);
+
+	fprintf(stderr, "new capacity: %zu\n", buffer_capacity);
 
 	return 1;
 }
@@ -95,8 +139,6 @@ static const sd_bus_vtable obmc_console_vtable[] =
 	SD_BUS_VTABLE_START(0),
 	SD_BUS_METHOD("read", "", "s", &obmc_console_read,
 		SD_BUS_VTABLE_UNPRIVILEGED),
-	SD_BUS_METHOD("dump", "", "s", &obmc_console_dump,
-		SD_BUS_VTABLE_UNPRIVILEGED),
 	SD_BUS_PROPERTY("size", "i", obmc_console_get_size, 0, 
 		SD_BUS_VTABLE_PROPERTY_EMITS_CHANGE),
 	SD_BUS_WRITABLE_PROPERTY("capacity", "i", obmc_console_get_capacity,
@@ -104,6 +146,8 @@ static const sd_bus_vtable obmc_console_vtable[] =
 	SD_BUS_VTABLE_END,
 };
 
+/* thread listening obmc-console socket
+ */
 static void *socket_thread(void *args)
 {
 	static const char console_socket_path[] = "\0obmc-console";
@@ -141,42 +185,12 @@ static void *socket_thread(void *args)
 		if (read(fd, &c, 1) < 1)
 			break;
 		pthread_mutex_lock(&buffer_lock);
-		if (buffer_sz + 1 == buffer_capacity) {
+		if (buffer_sz + 1 == buffer_capacity)
 			/* if there is not enought space for new data */
-			fprintf(stderr, "\n\nBUFFER OVERFLOW:\n");
-
-			/* search the first line end */
-			line_sz = 0;
-			while (line_sz < buffer_capacity && 
-					buffer[line_sz] != '\n')
-				line_sz++;
-
-			if (line_sz == buffer_capacity) {
-				/* whole buffer is a line */
-				buffer_sz = 0;
-				fprintf(stderr, "clear buffer\n");
-			} else {
-				buffer_sz -= line_sz + 1;
-				fprintf(stderr, "1st line size: %zu\n", line_sz);
-				buffer[line_sz] = '\0';
-				fprintf(stderr, "removed line: %s\n", buffer);
-				memmove(buffer, &buffer[line_sz + 1], buffer_sz);
-			}
-			fprintf(stderr, "New buffer size is: %zu\n\n\n", buffer_sz);
-		}
+			truncate_buffer();
 		buffer[buffer_sz] = c;
+		buffer[buffer_sz + 1] = '\0';
 		buffer_sz++;
-		buffer[buffer_sz] = '\0';
-		if (c == '\n') {
-			char *p = &buffer[buffer_sz - 1];
-			if (p != buffer)
-				p--;
-			while (p != buffer && *p != '\n')
-				p--;
-			if (*p == '\n')
-				p++;
-			fprintf(stderr, "%s", p);
-		}
 		pthread_mutex_unlock(&buffer_lock);
 	}
 
